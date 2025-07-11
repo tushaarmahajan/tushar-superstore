@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Bill - Tushar SuperStore</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .searchable-select {
+            position: relative;
+            width: 100%;
+        }
+        .searchable-select input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .searchable-select ul {
+            display: none;
+            position: absolute;
+            width: 100%;
+            max-height: 200px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .searchable-select ul.show {
+            display: block;
+        }
+        .searchable-select ul li {
+            padding: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .searchable-select ul li:hover {
+            background: #f0f0f0;
+        }
+        .invalid-quantity {
+            border-color: #ef4444;
+            background-color: #fee2e2;
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-4">
+        <h1 class="text-3xl font-bold mb-4">Create Bill</h1>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="bg-{{ 'green' if category == 'success' else 'red' if category == 'error' else 'yellow' if category == 'warning' else 'gray' }}-100 border-{{ 'green' if category == 'success' else 'red' if category == 'error' else 'yellow' if category == 'warning' else 'gray' }}-400 text-{{ 'green' if category == 'success' else 'red' if category == 'error' else 'yellow' if category == 'warning' else 'gray' }}-700 px-4 py-3 rounded mb-4 fade-in">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" id="billForm" class="bg-white p-6 rounded shadow-md">
+            <div class="mb-4">
+                <label for="category-filter" class="block text-gray-700">Filter by Category</label>
+                <select id="category-filter" class="w-full p-2 border rounded">
+                    <option value="">All Categories</option>
+                    {% for category in categories %}
+                        <option value="{{ category.id }}">{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div id="items-container">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 fade-in">
+                    <div class="searchable-select">
+                        <input type="text" id="product-search-0" placeholder="Search or select a product..." class="w-full p-2 border rounded" data-index="0" required>
+                        <ul id="product-options-0" class="list-none"></ul>
+                        <input type="hidden" name="product_id[]" id="product-id-0">
+                    </div>
+                    <div>
+                        <label class="block text-gray-700">Quantity <span class="text-sm text-gray-500">(Stock: <span id="stock-0">0</span>)</span></label>
+                        <input type="number" name="quantity[]" id="quantity-0" min="1" class="w-full p-2 border rounded" required>
+                        <span id="stock-error-0" class="text-red-500 text-sm hidden">Exceeds stock!</span>
+                    </div>
+                    <div class="flex items-end">
+                        <button type="button" class="bg-red-500 text-white px-2 py-1 rounded remove-item hidden" data-index="0">Remove</button>
+                    </div>
+                </div>
+            </div>
+            <button type="button" id="add-item" class="bg-green-500 text-white px-4 py-2 rounded mb-4">Add Item</button>
+            <div id="cart-summary" class="mt-4 p-4 bg-gray-50 rounded border">
+                <h3 class="text-lg font-semibold">Cart Summary</h3>
+                <p id="summary-total" class="text-xl font-bold">Total: ₹0.00</p>
+            </div>
+            <div class="mt-4 flex items-center">
+                <button type="submit" name="preview" class="bg-blue-500 text-white px-4 py-2 rounded mr-2">Preview Bill</button>
+                <button type="submit" name="save_draft" class="bg-yellow-500 text-white px-4 py-2 rounded mr-2">Save as Draft</button>
+                <button type="submit" class="bg-purple-500 text-white px-4 py-2 rounded mr-2">Create Bill</button>
+                <a href="{{ url_for('index') }}" class="bg-gray-500 text-white px-4 py-2 rounded">Back</a>
+            </div>
+        </form>
+
+        {% if preview %}
+            <div class="mt-4 bg-white p-6 rounded shadow-md fade-in">
+                <h2 class="text-2xl font-bold mb-4">Bill Preview</h2>
+                <table class="w-full border-collapse border">
+                    <thead>
+                        <tr class="bg-gray-200">
+                            <th class="border p-2">Product</th>
+                            <th class="border p-2">Quantity</th>
+                            <th class="border p-2">Price (₹)</th>
+                            <th class="border p-2">Total (₹)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                            <tr>
+                                <td class="border p-2">{{ item.product.name }}</td>
+                                <td class="border p-2">{{ item.quantity }}</td>
+                                <td class="border p-2">₹{{ "%.2f" % item.product.price }}</td>
+                                <td class="border p-2">₹{{ "%.2f" % item.total }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="3" class="border p-2 font-bold">Total</td>
+                            <td class="border p-2 font-bold">₹{{ "%.2f" % total }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+                <div class="mt-4 flex items-center">
+                    <a href="{{ url_for('create_bill') }}" class="bg-gray-500 text-white px-4 py-2 rounded mr-2">Back to Edit</a>
+                    <button type="submit" name="create" form="billForm" class="bg-purple-500 text-white px-4 py-2 rounded">Confirm Bill</button>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <script>
+        let productIndex = 0;
+        let cartTotal = 0;
+
+        function populateProductOptions(index, categoryId = '') {
+            const options = document.getElementById(`product-options-${index}`);
+            options.innerHTML = '';
+            const products = {{ products|tojson|safe }};
+            const filteredProducts = categoryId ? products.filter(p => p.category_id == categoryId) : products;
+            filteredProducts.forEach(product => {
+                const li = document.createElement('li');
+                li.textContent = `${product.name} (Stock: ${product.quantity}, ₹${product.price.toFixed(2)})`;
+                li.dataset.id = product.id;
+                li.dataset.stock = product.quantity;
+                li.addEventListener('click', () => {
+                    document.getElementById(`product-id-${index}`).value = product.id;
+                    document.getElementById(`product-search-${index}`).value = product.name;
+                    document.getElementById(`stock-${index}`).textContent = product.quantity;
+                    options.classList.remove('show');
+                    updateCartSummary(index);
+                    validateQuantity(index);
+                });
+                options.appendChild(li);
+            });
+        }
+
+        function filterProducts(index, searchTerm, categoryId = '') {
+            const options = document.getElementById(`product-options-${index}`);
+            const products = {{ products|tojson|safe }};
+            const filtered = products.filter(p => 
+                (p.name.toLowerCase().includes(searchTerm.toLowerCase()) || !searchTerm) &&
+                (!categoryId || p.category_id == categoryId)
+            );
+            options.innerHTML = '';
+            filtered.forEach(product => {
+                const li = document.createElement('li');
+                li.textContent = `${product.name} (Stock: ${product.quantity}, ₹${product.price.toFixed(2)})`;
+                li.dataset.id = product.id;
+                li.dataset.stock = product.quantity;
+                li.addEventListener('click', () => {
+                    document.getElementById(`product-id-${index}`).value = product.id;
+                    document.getElementById(`product-search-${index}`).value = product.name;
+                    document.getElementById(`stock-${index}`).textContent = product.quantity;
+                    options.classList.remove('show');
+                    updateCartSummary(index);
+                    validateQuantity(index);
+                });
+                options.appendChild(li);
+            });
+            if (filtered.length > 0) options.classList.add('show');
+        }
+
+        function validateQuantity(index) {
+            const quantityInput = document.getElementById(`quantity-${index}`);
+            const stockSpan = document.getElementById(`stock-${index}`);
+            const stockError = document.getElementById(`stock-error-${index}`);
+            const stock = parseInt(stockSpan.textContent);
+            const quantity = parseInt(quantityInput.value) || 0;
+
+            if (quantity > stock) {
+                quantityInput.classList.add('invalid-quantity');
+                stockError.classList.remove('hidden');
+                quantityInput.setCustomValidity('Quantity exceeds available stock!');
+            } else {
+                quantityInput.classList.remove('invalid-quantity');
+                stockError.classList.add('hidden');
+                quantityInput.setCustomValidity('');
+            }
+            updateCartSummary(index);
+        }
+
+        function updateCartSummary(index) {
+            const productId = document.getElementById(`product-id-${index}`).value;
+            const quantity = parseInt(document.getElementById(`quantity-${index}`).value) || 0;
+            const products = {{ products|tojson|safe }};
+            const product = products.find(p => p.id == productId);
+            if (product && quantity > 0) {
+                cartTotal = products.reduce((sum, p) => {
+                    const qty = parseInt(document.getElementById(`quantity-${products.findIndex(pr => pr.id === p.id)}`)?.value) || 0;
+                    return sum + (qty * p.price);
+                }, 0);
+            } else {
+                cartTotal = products.reduce((sum, p) => {
+                    const qty = parseInt(document.getElementById(`quantity-${products.findIndex(pr => pr.id === p.id)}`)?.value) || 0;
+                    return sum + (qty * p.price);
+                }, 0);
+            }
+            document.getElementById('summary-total').textContent = `Total: ₹${cartTotal.toFixed(2)}`;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            populateProductOptions(0);
+
+            document.querySelectorAll('.searchable-select input').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const index = e.target.dataset.index;
+                    const categoryId = document.getElementById('category-filter').value;
+                    filterProducts(index, e.target.value, categoryId);
+                });
+                input.addEventListener('focus', (e) => {
+                    const index = e.target.dataset.index;
+                    const categoryId = document.getElementById('category-filter').value;
+                    document.getElementById(`product-options-${index}`).classList.add('show');
+                    filterProducts(index, '', categoryId);
+                });
+                input.addEventListener('blur', (e) => {
+                    setTimeout(() => {
+                        const index = e.target.dataset.index;
+                        document.getElementById(`product-options-${index}`).classList.remove('show');
+                    }, 200);
+                });
+            });
+
+            document.getElementById('add-item').addEventListener('click', () => {
+                productIndex++;
+                const container = document.getElementById('items-container');
+                const newItem = `
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 fade-in">
+                        <div class="searchable-select">
+                            <input type="text" id="product-search-${productIndex}" placeholder="Search or select a product..." class="w-full p-2 border rounded" data-index="${productIndex}" required>
+                            <ul id="product-options-${productIndex}" class="list-none"></ul>
+                            <input type="hidden" name="product_id[]" id="product-id-${productIndex}">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700">Quantity <span class="text-sm text-gray-500">(Stock: <span id="stock-${productIndex}">0</span>)</span></label>
+                            <input type="number" name="quantity[]" id="quantity-${productIndex}" min="1" class="w-full p-2 border rounded" required>
+                            <span id="stock-error-${productIndex}" class="text-red-500 text-sm hidden">Exceeds stock!</span>
+                        </div>
+                        <div class="flex items-end">
+                            <button type="button" class="bg-red-500 text-white px-2 py-1 rounded remove-item" data-index="${productIndex}">Remove</button>
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', newItem);
+                populateProductOptions(productIndex);
+
+                document.getElementById(`quantity-${productIndex}`).addEventListener('input', () => validateQuantity(productIndex));
+                document.querySelector(`#product-search-${productIndex}`).addEventListener('input', (e) => {
+                    const categoryId = document.getElementById('category-filter').value;
+                    filterProducts(productIndex, e.target.value, categoryId);
+                });
+                document.querySelector(`#product-search-${productIndex}`).addEventListener('focus', (e) => {
+                    const categoryId = document.getElementById('category-filter').value;
+                    document.getElementById(`product-options-${productIndex}`).classList.add('show');
+                    filterProducts(productIndex, '', categoryId);
+                });
+                document.querySelector(`#product-search-${productIndex}`).addEventListener('blur', (e) => {
+                    setTimeout(() => document.getElementById(`product-options-${productIndex}`).classList.remove('show'), 200);
+                });
+                document.querySelector(`.remove-item`).addEventListener('click', (e) => {
+                    e.target.closest('div.grid').remove();
+                    updateCartSummary();
+                });
+            });
+
+            document.getElementById('category-filter').addEventListener('change', (e) => {
+                const categoryId = e.target.value;
+                document.querySelectorAll('.searchable-select input').forEach(input => {
+                    const index = input.dataset.index;
+                    populateProductOptions(index, categoryId);
+                });
+            });
+
+            document.querySelectorAll('input[name="quantity[]"]').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const index = e.target.id.split('-')[1];
+                    validateQuantity(index);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

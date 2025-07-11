@@ -1,0 +1,49 @@
+% Defining document class and basic setup
+\documentclass[a4paper,12pt]{article}
+
+% Including necessary packages
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage{booktabs}
+
+% Setting page margins
+\geometry{margin=1in}
+
+% Starting document
+\begin{document}
+
+% Adding store logo (uncomment and replace with actual logo path if available)
+%\includegraphics[width=0.3\textwidth]{logo.png}
+\vspace{10pt}
+\textbf{\LARGE Super Store}
+\vspace{5pt}
+\large Bill No: {{ bill.id }} \\
+Date: {{ bill.date.strftime('%Y-%m-%d %H:%M:%S') }}
+
+% Creating bill items table
+\begin{center}
+    \begin{tabular}{|l|r|r|r|}
+        \hline
+        \textbf{Product} & \textbf{Quantity} & \textbf{Price (₹)} & \textbf{Total (₹)} \\
+        \hline
+        {% for item in items %}
+        {{ item.product.name }} & {{ item.quantity }} & {{ "%.2f" % item.price }} & {{ "%.2f" % (item.quantity * item.price) }} \\
+        \hline
+        {% endfor %}
+        \hline
+        \textbf{Total} & & & {{ "%.2f" % bill.total }} \\
+        \hline
+    \end{tabular}
+\end{center}
+
+% Adding footer
+\vspace{20pt}
+\begin{center}
+    \large \textbf{Total Amount: ₹{{ "%.2f" % bill.total }}}
+\end{center}
+
+% Ending document
+\end{document}
