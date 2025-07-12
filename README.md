@@ -152,7 +152,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 👨‍💻 Author
 
 **Tushar**
-- GitHub: [@yourusername](https://github.com/yourusername)
+- GitHub: [@tushaarmahajan](https://github.com/tushaarmahajan)
 
 ## 🙏 Acknowledgments
 
